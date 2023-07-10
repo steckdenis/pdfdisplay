@@ -1,0 +1,3 @@
+cherrypy
+qrcode
+jinja2

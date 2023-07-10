@@ -1,0 +1,204 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <title>La Musique</title>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <style>
+            body {
+                background: #fff;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            #upload_form p {
+                text-align: center;
+            }
+
+            #status {
+                text-align: left;
+                background: #cfc;
+                border: 2px solid #4c4;
+                padding: 10px;
+            }
+
+            #pages_list_contents canvas {
+                border: 1px solid #ccc;
+                display: block;
+                margin: auto;
+                cursor: pointer;
+                width: 320px;
+                height: 240px;
+            }
+
+            #pages_list_contents img {
+                float: right;
+                width: 32px;
+                height: 32px;
+                margin-right: 20px;
+            }
+
+            #pages_list_contents div {
+                margin-bottom: 20px;
+            }
+
+            div.current {
+                background: #cfc;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="upload_form">
+            <h1>Envoyer un PDF au projecteur</h1>
+
+            <form>
+                <p>
+                    <input type="file" id="upload_file" name="upload_file">
+                </p>
+            </form>
+
+            <p id="status">
+                Pas encore de PDF envoyé. Cliquez sur le bouton ci-dessus pour choisir un PDF à envoyer.
+            </p>
+        </div>
+
+        <div id="pages_list">
+            <h1>Pages dans le PDF</h1>
+
+            <div id="pages_list_contents">
+            </div>
+        </div>
+
+        <script src="/static/jquery-3.6.3.min.js"></script>
+        <script src="/static/pdf.min.js"></script>
+        <script>
+            var pages_to_process = 0;
+            var pages_to_upload = 0;
+
+            var update_status = function() {
+                if (pages_to_upload == 0) {
+                    $("#status").text("Traitement et envoi terminés !");
+                } else {
+                    $("#status").text("Plus que " + pages_to_process + " pages à traiter, et " + pages_to_upload + " pages à envoyer.");
+                }
+            }
+
+            var canvas_clicked = function(event) {
+                var canvas = event.target;
+                var div = canvas.parentElement;
+                var p = canvas.getAttribute("pageNumber");
+
+                $.post("/set_page", {
+                    page_index: p
+                });
+
+                $("#pages_list_contents div").removeClass("current");
+                $(div).addClass("current");
+            }
+
+            var pdf_page_uploaded = function(data, textStatus, xhr) {
+                var p = data;   // The server returns page_index back
+                $("#page" + p + " img").remove();
+
+                pages_to_upload -= 1;
+                update_status();
+            }
+
+            var process_pdf_page = function(page) {
+                var p = page._pageIndex + 1;
+                var canvas = $("#page" + p + " canvas")[0];
+
+                var desiredWidth = canvas.width;
+                var viewport = page.getViewport({ scale: 1, });
+                var scale = desiredWidth / viewport.width;
+                var scaledViewport = page.getViewport({ scale: scale, });
+
+                var renderTask = page.render({
+                    canvasContext: canvas.getContext('2d'),
+                    viewport: scaledViewport
+                });
+
+                renderTask.promise.then(function() {
+                    pages_to_process -= 1;
+                    update_status();
+
+                    $.post("/upload_page", {
+                        data: canvas.toDataURL(),
+                        page_index: p
+                    }, pdf_page_uploaded);
+                });
+            }
+
+            var process_pdf_data = function(data) {
+                var load_task = pdfjsLib.getDocument(data);
+
+                load_task.promise.then(function(pdf) {
+                    var pages = pdf.numPages;
+                    var pages_list = document.getElementById("pages_list_contents");
+
+                    pages_list.innerHTML = "";
+                    pages_to_process = pages;
+                    pages_to_upload = pages;
+
+                    // Start processing all the pages
+                    for (let p=1; p<=pages; p++) {
+                        // Create a child of pages_list_contents with a canvas and a processing indicator
+                        var div = document.createElement("div");
+                        var canvas = document.createElement("canvas");
+                        var indicator = document.createElement("img");
+
+                        canvas.width = 1024;
+                        canvas.height = 768;
+
+                        canvas.setAttribute("onclick", "canvas_clicked(event)");
+                        canvas.setAttribute("pageNumber", p);
+                        div.setAttribute("id", "page" + p);
+                        indicator.setAttribute("src", "/static/processing.gif");
+
+                        pages_list.appendChild(div);
+                        div.appendChild(indicator);
+                        div.appendChild(canvas);
+
+                        pdf.getPage(p).then(function(page) {
+                            process_pdf_page(page);
+                        });
+                    }
+                });
+            }
+
+            var process_upload_file = function(event) {
+                var files = $('#upload_file').prop('files');
+
+                if (files.length == 0) {
+                    $("#status").text("Aucun fichier PDF sélectionné.");
+                    return;
+                }
+
+                var file = files[0];
+
+                // Check that it is a PDF file
+                if(file.type != "application/pdf"){
+                    $("#status").text(file.name + " n'est pas un fichier PDF.");
+                    return
+                }
+
+                // Read the file
+                $("#status").text("Lecture du fichier PDF...");
+                var fileReader = new FileReader();
+
+                fileReader.onload = function() {
+                    var data = new Uint8Array(this.result);
+                    process_pdf_data(data);
+                };
+                fileReader.readAsArrayBuffer(file);
+            }
+
+            // React to changes in grades
+            $("#upload_file").on("change", process_upload_file);
+        </script>
+    </body>
+</html>
