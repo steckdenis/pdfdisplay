@@ -26,20 +26,14 @@
                 padding: 10px;
             }
 
-            #pages_list_contents canvas {
+            #pages_list_contents .page {
                 border: 1px solid #ccc;
                 display: block;
                 margin: auto;
                 cursor: pointer;
                 width: 320px;
                 height: 240px;
-            }
-
-            #pages_list_contents img {
-                float: right;
-                width: 32px;
-                height: 32px;
-                margin-right: 20px;
+                background: #fff;
             }
 
             #pages_list_contents div {
@@ -74,23 +68,12 @@
         </div>
 
         <script src="/static/jquery-3.6.3.min.js"></script>
-        <script src="/static/pdf.min.js"></script>
         <script>
-            var pages_to_process = 0;
-            var pages_to_upload = 0;
 
-            var update_status = function() {
-                if (pages_to_upload == 0) {
-                    $("#status").text("Traitement et envoi terminés !");
-                } else {
-                    $("#status").text("Plus que " + pages_to_process + " pages à traiter, et " + pages_to_upload + " pages à envoyer.");
-                }
-            }
-
-            var canvas_clicked = function(event) {
-                var canvas = event.target;
-                var div = canvas.parentElement;
-                var p = canvas.getAttribute("pageNumber");
+            var img_clicked = function(event) {
+                var img = event.target;
+                var div = img.parentElement;
+                var p = img.getAttribute("pageNumber");
 
                 $.post("/set_page", {
                     page_index: p
@@ -100,77 +83,32 @@
                 $(div).addClass("current");
             }
 
-            var pdf_page_uploaded = function(data, textStatus, xhr) {
-                var p = data;   // The server returns page_index back
-                $("#page" + p + " img").remove();
+            var pdf_uploaded = function(data, textStatus, xhr) {
+                var num_pages = data;   // The server returns the number of pages in the PDF
+                $("#status").text("PDF envoyé et traité.");
 
-                pages_to_upload -= 1;
-                update_status();
+                var pages_list = document.getElementById("pages_list_contents");
+
+                pages_list.innerHTML = "";
+
+                // Add the list of pages
+                for (let p=0; p<num_pages; p++) {
+                    // Create a child of pages_list_contents with an image
+                    var div = document.createElement("div");
+                    var img = document.createElement("img");
+
+                    img.setAttribute("src", "/get_page_image?page_index=" + p);
+                    img.setAttribute("class", "page");
+                    img.setAttribute("onclick", "img_clicked(event);");
+                    img.setAttribute("pageNumber", p);
+                    div.setAttribute("id", "page" + p);
+
+                    pages_list.appendChild(div);
+                    div.appendChild(img);
+                }
             }
 
-            var process_pdf_page = function(page) {
-                var p = page._pageIndex + 1;
-                var canvas = $("#page" + p + " canvas")[0];
-
-                var desiredWidth = canvas.width;
-                var viewport = page.getViewport({ scale: 1, });
-                var scale = desiredWidth / viewport.width;
-                var scaledViewport = page.getViewport({ scale: scale, });
-
-                var renderTask = page.render({
-                    canvasContext: canvas.getContext('2d'),
-                    viewport: scaledViewport
-                });
-
-                renderTask.promise.then(function() {
-                    pages_to_process -= 1;
-                    update_status();
-
-                    $.post("/upload_page", {
-                        data: canvas.toDataURL(),
-                        page_index: p
-                    }, pdf_page_uploaded);
-                });
-            }
-
-            var process_pdf_data = function(data) {
-                var load_task = pdfjsLib.getDocument(data);
-
-                load_task.promise.then(function(pdf) {
-                    var pages = pdf.numPages;
-                    var pages_list = document.getElementById("pages_list_contents");
-
-                    pages_list.innerHTML = "";
-                    pages_to_process = pages;
-                    pages_to_upload = pages;
-
-                    // Start processing all the pages
-                    for (let p=1; p<=pages; p++) {
-                        // Create a child of pages_list_contents with a canvas and a processing indicator
-                        var div = document.createElement("div");
-                        var canvas = document.createElement("canvas");
-                        var indicator = document.createElement("img");
-
-                        canvas.width = 1024;
-                        canvas.height = 768;
-
-                        canvas.setAttribute("onclick", "canvas_clicked(event)");
-                        canvas.setAttribute("pageNumber", p);
-                        div.setAttribute("id", "page" + p);
-                        indicator.setAttribute("src", "/static/processing.gif");
-
-                        pages_list.appendChild(div);
-                        div.appendChild(indicator);
-                        div.appendChild(canvas);
-
-                        pdf.getPage(p).then(function(page) {
-                            process_pdf_page(page);
-                        });
-                    }
-                });
-            }
-
-            var process_upload_file = function(event) {
+            var upload_pdf = function(event) {
                 var files = $('#upload_file').prop('files');
 
                 if (files.length == 0) {
@@ -186,19 +124,25 @@
                     return
                 }
 
-                // Read the file
-                $("#status").text("Lecture du fichier PDF...");
-                var fileReader = new FileReader();
+                // Upload the file
+                $("#status").text("Envoi et traitement du PDF...");
+                var formData = new FormData();
 
-                fileReader.onload = function() {
-                    var data = new Uint8Array(this.result);
-                    process_pdf_data(data);
-                };
-                fileReader.readAsArrayBuffer(file);
+                formData.append("data", file);
+
+                $.ajax({
+                    url: "/upload_pdf",
+                    type: 'POST',
+                    data: formData,
+                    cache: false,
+                    contentType: false,
+                    processData: false,
+                    success: pdf_uploaded
+                });
             }
 
             // React to changes in grades
-            $("#upload_file").on("change", process_upload_file);
+            $("#upload_file").on("change", upload_pdf);
         </script>
     </body>
 </html>

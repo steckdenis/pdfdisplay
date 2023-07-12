@@ -1,6 +1,7 @@
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
+from PyQt6.QtPdf import *
 
 import qrcode
 import cherrypy
@@ -13,8 +14,7 @@ import sys
 import struct
 import urllib
 
-PIXMAPS = {}
-PIXMAPS_LOCK = threading.Lock()
+IMAGES = {}
 
 def get_ip():
     """ https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
@@ -47,25 +47,51 @@ class WebserverRoot(object):
         return self.env.get_template("index.html").render()
 
     @cherrypy.expose
-    def upload_page(self, data, page_index):
-        # Save the data URI in a file
-        with urllib.request.urlopen(data) as response:
-            contents = response.read()
-            img = QImage.fromData(contents, "PNG")
-            pix = QPixmap.fromImage(img)
+    def upload_pdf(self, data):
+        # Save the PDF document
+        with open("/tmp/pdf.pdf", "wb") as f:
+            f.write(data.file.read())
 
-            with PIXMAPS_LOCK:
-                PIXMAPS[int(page_index)] = pix
+        # Load it with Qt
+        doc = QPdfDocument(None)
+        doc.load("/tmp/pdf.pdf")
 
-        return str(page_index)
+        # Render the pages
+        size = self.label.size()
+        options = QPdfDocumentRenderOptions()
+        num_pages = doc.pageCount()
+
+        for page_index in range(num_pages):
+            img = doc.render(page_index, size, options)
+
+            IMAGES[page_index] = img
+
+        return str(num_pages)
+
+    @cherrypy.expose
+    def get_page_image(self, page_index):
+        page_index = int(page_index)
+        img = IMAGES[page_index]
+
+        # Save img as PNG and return that data
+        ba = QByteArray()
+        buf = QBuffer(ba)
+        buf.open(QIODevice.OpenModeFlag.WriteOnly)
+
+        img.save(buf, "PNG")
+
+        cherrypy.response.headers['Content-Type'] = 'image/png'
+        cherrypy.response.headers['Cache-Control'] = 'no-store'
+        return bytes(ba)
 
     @cherrypy.expose
     def set_page(self, page_index):
         # Tell the GUI to display that image
         page_index = int(page_index)
 
-        if page_index in PIXMAPS:
-            pix = PIXMAPS[page_index]
+        if page_index in IMAGES:
+            img = IMAGES[page_index]
+            pix = QPixmap.fromImage(img)
 
             self.label.setPixmap(pix)
             self.qrcode.hide()
@@ -120,6 +146,11 @@ if __name__ == '__main__':
     layout = QVBoxLayout(win)
     layout.addStretch()
     layout.addWidget(label, 0, Qt.AlignmentFlag.AlignCenter)
+
+    # Set the main window background to white
+    pal = win.palette()
+    pal.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255))
+    win.setPalette(pal)
 
     # Start the webserver thread
     webserver_thread = WebserverThread(win, label)
