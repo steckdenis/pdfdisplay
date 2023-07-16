@@ -43,9 +43,23 @@
             div.current {
                 background: #cfc;
             }
+
+            #fixed {
+                cursor: pointer;
+                background: #fff;
+                position: fixed;
+                left: 20px;
+                top: 50%;
+                padding: 10px;
+                border: 1px solid #888;
+            }
         </style>
     </head>
     <body>
+        <div id="fixed">
+            <img id="clear_screen" src="/static/clear_screen_small.png">
+        </div>
+
         <div id="upload_form">
             <h1>Envoyer un PDF au projecteur</h1>
 
@@ -69,6 +83,10 @@
 
         <script src="/static/jquery-3.6.3.min.js"></script>
         <script>
+            var clear_screen = function(event) {
+                $.post("/clear_screen", {});
+                $("#pages_list_contents div").removeClass("current");
+            }
 
             var img_clicked = function(event) {
                 var img = event.target;
@@ -141,8 +159,9 @@
                 });
             }
 
-            // React to changes in grades
+            // React to uploaded files and clicks
             $("#upload_file").on("change", upload_pdf);
+            $("#clear_screen").on("click", clear_screen);
         </script>
     </body>
 </html>

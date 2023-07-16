@@ -35,6 +35,8 @@ class WebserverRoot(object):
 
         self.label = label
         self.qrcode = qrcode
+        self.black_pixmap = QPixmap(64, 64)
+        self.black_pixmap.fill(QColor(0, 0, 0))
 
         # Initialize the Jinja templates
         self.env = jinja2.Environment(
@@ -98,9 +100,18 @@ class WebserverRoot(object):
 
         return ''
 
+    @cherrypy.expose
+    def clear_screen(self):
+        # Display solid black instead of a page from the PDF
+        self.label.setPixmap(self.black_pixmap)
+        self.qrcode.hide()
+
+        return ''
+
 class WebserverThread(threading.Thread):
     def __init__(self, label, qrcode):
-        super().__init__()
+        super().__init__(daemon=True)
+
         self.label = label
         self.qrcode = qrcode
 
@@ -146,6 +157,9 @@ if __name__ == '__main__':
     layout = QVBoxLayout(win)
     layout.addStretch()
     layout.addWidget(label, 0, Qt.AlignmentFlag.AlignCenter)
+
+    # Load the default background
+    win.setPixmap(QPixmap("empty_background.jpg"))
 
     # Set the main window background to white
     pal = win.palette()
