@@ -14,8 +14,6 @@ import sys
 import struct
 import urllib
 
-IMAGES = {}
-
 def get_ip():
     """ https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
     """
@@ -44,6 +42,31 @@ class WebserverRoot(object):
             autoescape=jinja2.select_autoescape()
         )
 
+    def render_page(self, page_index):
+        if page_index >= self.doc.pages:
+            page_index = self.doc.pages - 1
+
+        # Render the pages
+        renderer = poppler.PageRenderer()
+        size = self.label.size()
+
+        page = self.doc.create_page(page_index)
+        page_rect = page.page_rect()
+
+        pwidth = page_rect.width            # Width and height in points (1/72nd of an inch)
+        pheight = page_rect.height
+        swidth = size.width()               # Screen size in pixels
+        sheight = size.height()
+
+        xdpi = swidth / (pwidth / 72)       # dot-per-inch = pixels / inch = pixels / (points / 72)
+        ydpi = sheight / (pheight / 72)
+
+        image = renderer.render_page(page, xdpi, ydpi)
+        print(image.width, image.height)
+        image = QImage(image.data, image.width, image.height, image.bytes_per_row, QImage.Format_RGB32)
+
+        return image
+
     @cherrypy.expose
     def index(self):
         return self.env.get_template("index.html").render()
@@ -51,26 +74,14 @@ class WebserverRoot(object):
     @cherrypy.expose
     def upload_pdf(self, data):
         # Load the PDF with Poppler
-        doc = poppler.load_from_data(data.file.read())
+        self.doc = poppler.load_from_data(data.file.read())
 
-        # Render the pages
-        renderer = poppler.PageRenderer()
-        size = self.label.size()
-        num_pages = doc.pages
-
-        for page_index in range(num_pages):
-            page = doc.create_page(page_index)
-            image = renderer.render_page(page)
-            image = QImage(image.data, image.width, image.height, image.bytes_per_row, QImage.Format_RGB32)
-
-            IMAGES[page_index] = image
-
-        return str(num_pages)
+        return str(self.doc.pages)
 
     @cherrypy.expose
     def get_page_image(self, page_index):
         page_index = int(page_index)
-        img = IMAGES[page_index]
+        img = self.render_page(page_index)
 
         # Save img as PNG and return that data
         ba = QByteArray()
@@ -87,13 +98,12 @@ class WebserverRoot(object):
     def set_page(self, page_index):
         # Tell the GUI to display that image
         page_index = int(page_index)
+        img = self.render_page(page_index)
 
-        if page_index in IMAGES:
-            img = IMAGES[page_index]
-            pix = QPixmap.fromImage(img)
+        pix = QPixmap.fromImage(img)
 
-            self.label.setPixmap(pix)
-            self.qrcode.hide()
+        self.label.setPixmap(pix)
+        self.qrcode.hide()
 
         return ''
 
