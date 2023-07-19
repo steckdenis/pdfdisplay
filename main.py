@@ -62,8 +62,8 @@ class WebserverRoot(object):
         ydpi = sheight / (pheight / 72)
 
         image = renderer.render_page(page, xdpi, ydpi)
-        print(image.width, image.height)
         image = QImage(image.data, image.width, image.height, image.bytes_per_row, QImage.Format_RGB32)
+        image = image.copy()                # Required because renderer.render_page will go away, freeing the data used as QImage as backing store.
 
         return image
 
