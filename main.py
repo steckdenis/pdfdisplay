@@ -1,11 +1,11 @@
-from PyQt6.QtCore import *
-from PyQt6.QtGui import *
-from PyQt6.QtWidgets import *
-from PyQt6.QtPdf import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 import qrcode
 import cherrypy
 import jinja2
+import poppler
 
 import socket
 import threading
@@ -50,23 +50,20 @@ class WebserverRoot(object):
 
     @cherrypy.expose
     def upload_pdf(self, data):
-        # Save the PDF document
-        with open("/tmp/pdf.pdf", "wb") as f:
-            f.write(data.file.read())
-
-        # Load it with Qt
-        doc = QPdfDocument(None)
-        doc.load("/tmp/pdf.pdf")
+        # Load the PDF with Poppler
+        doc = poppler.load_from_data(data.file.read())
 
         # Render the pages
+        renderer = poppler.PageRenderer()
         size = self.label.size()
-        options = QPdfDocumentRenderOptions()
-        num_pages = doc.pageCount()
+        num_pages = doc.pages
 
         for page_index in range(num_pages):
-            img = doc.render(page_index, size, options)
+            page = doc.create_page(page_index)
+            image = renderer.render_page(page)
+            image = QImage(image.data, image.width, image.height, image.bytes_per_row, QImage.Format_RGB32)
 
-            IMAGES[page_index] = img
+            IMAGES[page_index] = image
 
         return str(num_pages)
 

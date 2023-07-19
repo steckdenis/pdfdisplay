@@ -1,4 +1,5 @@
 cherrypy
 qrcode
 jinja2
-PyQt6
+PyQt5
+python-poppler
