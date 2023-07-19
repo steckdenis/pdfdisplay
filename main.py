@@ -141,9 +141,10 @@ if __name__ == '__main__':
 
     # Make the main window, it consists of a background QLabel for displaying images, and the QR-Code
     win = QLabel()
+    win.setWindowFlags(Qt.WindowType.FramelessWindowHint)
     win.setWindowTitle("PDF Display")
     win.setScaledContents(True)
-    win.showMaximized()
+    win.showFullScreen()
 
     qr = qrcode.QRCode(
         version=1,
