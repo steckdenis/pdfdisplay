@@ -143,6 +143,7 @@ if __name__ == '__main__':
     win = QLabel()
     win.setWindowFlags(Qt.WindowType.FramelessWindowHint)
     win.setWindowTitle("PDF Display")
+    win.setCursor(Qt.CursorShape.BlankCursor)
     win.setScaledContents(True)
     win.showFullScreen()
 
