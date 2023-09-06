@@ -4,7 +4,6 @@ from PyQt5.QtWidgets import *
 
 import qrcode
 import cherrypy
-import jinja2
 import poppler
 
 import socket
@@ -36,12 +35,6 @@ class WebserverRoot(object):
         self.black_pixmap = QPixmap(64, 64)
         self.black_pixmap.fill(QColor(0, 0, 0))
 
-        # Initialize the Jinja templates
-        self.env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader("templates"),
-            autoescape=jinja2.select_autoescape()
-        )
-
     def render_page(self, page_index):
         if page_index >= self.doc.pages:
             page_index = self.doc.pages - 1
@@ -69,7 +62,8 @@ class WebserverRoot(object):
 
     @cherrypy.expose
     def index(self):
-        return self.env.get_template("index.html").render()
+        with open("templates/index.html", "rb") as f:
+            return f.read()
 
     @cherrypy.expose
     def upload_pdf(self, data):
@@ -141,11 +135,12 @@ if __name__ == '__main__':
 
     # Make the main window, it consists of a background QLabel for displaying images, and the QR-Code
     win = QLabel()
-    win.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+    #win.setWindowFlags(Qt.WindowType.FramelessWindowHint)
     win.setWindowTitle("PDF Display")
     win.setCursor(Qt.CursorShape.BlankCursor)
     win.setScaledContents(True)
-    win.showFullScreen()
+    #win.showFullScreen()
+    win.show()
 
     qr = qrcode.QRCode(
         version=1,
