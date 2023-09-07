@@ -4,7 +4,7 @@
         <title>La Musique</title>
         <meta http-equiv="content-type" content="text/html; charset=utf-8" />
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.4">
 
         <style>
             body {
@@ -26,18 +26,21 @@
                 padding: 10px;
             }
 
+            #pages_list_contents {
+                text-align: center;
+            }
+
             #pages_list_contents .page {
                 border: 1px solid #ccc;
                 display: block;
-                margin: auto;
-                cursor: pointer;
-                width: 320px;
-                height: 240px;
                 background: #fff;
             }
 
             #pages_list_contents div {
+                display: inline-block;
                 margin-bottom: 20px;
+                cursor: pointer;
+                position: relative;
             }
 
             div.current {
@@ -52,6 +55,22 @@
                 top: 50%;
                 padding: 10px;
                 border: 1px solid #888;
+                z-index: 2;
+            }
+
+            .radio_label {
+                padding: 10px;
+                line-height: 25px;
+            }
+
+            input:checked + label {
+                color: red;
+            }
+
+            .image_line {
+                border: 2px solid red;
+                position: absolute;
+                display: block;
             }
         </style>
     </head>
@@ -66,6 +85,19 @@
             <form>
                 <p>
                     <input type="file" id="upload_file" name="upload_file">
+                </p>
+                <p>
+                    <span class="radio_label">
+                        <input type="radio" id="as_is" name="processing">
+                        <label for="as_is">Afficher le PDF tel quel</label>
+                    </span>
+
+                    <span style="width: 40px;">&nbsp;</span>
+
+                    <span class="radio_label">
+                        <input type="radio" id="processed" name="processing">
+                        <label for="processed">Afficher le PDF ligne par ligne</label>
+                    </span>
                 </p>
             </form>
 
@@ -83,12 +115,16 @@
 
         <script src="/static/jquery-3.6.3.min.js"></script>
         <script>
-            var clear_screen = function(event) {
+            function clear_screen(event) {
                 $.post("/clear_screen", {});
                 $("#pages_list_contents div").removeClass("current");
             }
 
-            var img_clicked = function(event) {
+            function is_processing_enabled() {
+                return $('#processed')[0].checked;
+            }
+
+            function img_clicked(event) {
                 var img = event.target;
                 var div = img.parentElement;
                 var p = img.getAttribute("pageNumber");
@@ -101,7 +137,42 @@
                 $(div).addClass("current");
             }
 
-            var pdf_uploaded = function(data, textStatus, xhr) {
+            function line_clicked(event) {
+                var link = event.target;
+                var div = link.parentElement;
+                var p = link.getAttribute("pageNumber");
+                var l = link.getAttribute("lineIndex");
+
+                $.post("/set_line", {
+                    page_index: p,
+                    line_index: l
+                });
+
+                $("#pages_list_contents div").removeClass("current");
+                $(div).addClass("current");
+            }
+
+            function process_pagelines(data, textStatus, xhr) {
+                for (let p=0; p<data.length; p++) {
+                    // DIV that contains the image
+                    const div = document.getElementById("page" + p);
+
+                    for (let i=0; i<data[p].length; i++) {
+                        const line = data[p][i];
+                        var link = document.createElement("a");
+
+                        link.setAttribute("class", "image_line");
+                        link.setAttribute("style", "top: " + line["top"] + "px; left: " + line["left"] + "px; width: " + line["width"] + "px; height: " + line["height"] + "px;");
+                        link.setAttribute("pageNumber", p);
+                        link.setAttribute("lineIndex", i);
+                        link.setAttribute("onclick", "line_clicked(event);");
+
+                        div.appendChild(link);
+                    }
+                }
+            }
+
+            function pdf_uploaded(data, textStatus, xhr) {
                 var num_pages = data;   // The server returns the number of pages in the PDF
                 $("#status").text("PDF envoyé et traité.");
 
@@ -117,17 +188,35 @@
 
                     img.setAttribute("src", "/get_page_image?page_index=" + p);
                     img.setAttribute("class", "page");
-                    img.setAttribute("onclick", "img_clicked(event);");
                     img.setAttribute("pageNumber", p);
                     div.setAttribute("id", "page" + p);
+                    div.setAttribute("class", "page_div");
 
-                    pages_list.appendChild(div);
+                    if (!is_processing_enabled()) {
+                        img.setAttribute("onclick", "img_clicked(event);");
+                    }
+
                     div.appendChild(img);
+                    pages_list.appendChild(div);
+                    pages_list.appendChild(document.createElement("br"));
+                }
+
+                // For processed PDFs, add the image maps
+                if (is_processing_enabled()) {
+                    $.ajax({
+                        url: "/get_pagelines",
+                        type: 'POST',
+                        data: {},
+                        cache: false,
+                        contentType: "application/json",
+                        success: process_pagelines
+                    });
                 }
             }
 
-            var upload_pdf = function(event) {
+            function upload_pdf(event) {
                 var files = $('#upload_file').prop('files');
+                var processing = $('#processed')[0].checked;
 
                 if (files.length == 0) {
                     $("#status").text("Aucun fichier PDF sélectionné.");
@@ -147,6 +236,7 @@
                 var formData = new FormData();
 
                 formData.append("data", file);
+                formData.append("processing", is_processing_enabled());
 
                 $.ajax({
                     url: "/upload_pdf",
