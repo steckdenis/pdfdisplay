@@ -186,7 +186,7 @@
                     var div = document.createElement("div");
                     var img = document.createElement("img");
 
-                    img.setAttribute("src", "/get_page_image?page_index=" + p);
+                    img.setAttribute("src", "/get_page_image?page_index=" + p + "&rnd=" + Math.random());
                     img.setAttribute("class", "page");
                     img.setAttribute("pageNumber", p);
                     div.setAttribute("id", "page" + p);

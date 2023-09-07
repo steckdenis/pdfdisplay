@@ -140,7 +140,7 @@ class WebserverRoot(object):
         return str(self.doc.pages)
 
     @cherrypy.expose
-    def get_page_image(self, page_index):
+    def get_page_image(self, page_index, rnd):
         """ Get the image of a page in the PDF. This is always a page from the original PDF, whether processing is enabled or not
         """
         page_index = int(page_index)
