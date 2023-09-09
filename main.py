@@ -36,7 +36,7 @@ class WebserverRoot(object):
         self.black_pixmap = QPixmap(64, 64)
         self.black_pixmap.fill(QColor(0, 0, 0))
 
-    def render_page(self, page_index, preview):
+    def render_page(self, page_index: int, preview: bool) -> QImage:
         if page_index >= self.doc.pages:
             page_index = self.doc.pages - 1
 
@@ -105,7 +105,6 @@ class WebserverRoot(object):
                 tops_to_lines = sorted(tops_to_lines.items(), key=lambda e: e[0])
 
                 # Split the lines and go from lists of poppler text elements to nice dicts
-                # NOTE: Lines not split for the moment
                 for i in range(len(tops_to_lines)):
                     top, elements = tops_to_lines[i]
                     left = elements[0].bbox.left
@@ -133,6 +132,37 @@ class WebserverRoot(object):
                         "height": int(height),
                         "text": text
                     }
+
+                # If the page does not contain any text, assume that it is an image. The image is the entire region of the page minus any white space
+                if len(tops_to_lines) == 0:
+                    image = self.render_page(page_index, preview=True)
+                    image_top = image.height()
+                    image_bottom = 0
+                    image_left = image.width()
+                    image_right = 0
+
+                    for y in range(image.height()):
+                        for x in range(image.width()):
+                            if image.pixel(x, y) == 0xFFFFFFFF:
+                                continue
+
+                            image_top = min(y, image_top)
+                            image_left = min(x, image_left)
+                            image_bottom = max(y, image_bottom)
+                            image_right = max(x, image_right)
+
+                    if image_right != 0:
+                        tops_to_lines.append({
+                            "top": image_top,
+                            "left": image_left,
+                            "width": image_right - image_left,
+                            "height": image_bottom - image_top,
+                            "text": '',
+                            "image": True,
+                            "image_width": image.width(),
+                            "image_height": image.height(),
+                        })
+
 
                 self.page_lines.append(tops_to_lines)
 
@@ -182,32 +212,57 @@ class WebserverRoot(object):
 
         try:
             # Get the line and display it in the QLabel (that has the right background color and font)
-            line = self.page_lines[page_index][line_index]["text"]
+            line = self.page_lines[page_index][line_index]
 
-            # If the line is too long, split it close to the middle at some punctuation
-            print(line, len(line))
-            if len(line) > 55:
-                l = len(line)
-                middle = l // 2
-                distances_and_indexes = []
-
-                for index, c in enumerate(line):
-                    if c in '!,.;:':
-                        distances_and_indexes.append((abs(index - middle), index))
-
-                distances_and_indexes = sorted(distances_and_indexes, key = lambda e: e[0])
-
-                if len(distances_and_indexes) > 0:
-                    split_after_index = distances_and_indexes[0][1]
-
-                    line = line[:split_after_index+1] + '\n' + line[split_after_index+1:]
-
-            self.label.setText(line)
-            self.qrcode.hide()
+            # Display images as is
+            if 'image' in line:
+                self.set_line_image(page_index, line)
+            else:
+                self.set_line_text(page_index, line)
         except IndexError:
             pass
 
         return ''
+
+    def set_line_text(self, page_index, line):
+        line = line["text"]
+
+        # Split long lines at some natural (separator) boundary, instead of letting word wrap do weird things
+        if len(line) > 55:
+            l = len(line)
+            middle = l // 2
+            distances_and_indexes = []
+
+            for index, c in enumerate(line):
+                if c in '!,.;:':
+                    distances_and_indexes.append((abs(index - middle), index))
+
+            distances_and_indexes = sorted(distances_and_indexes, key = lambda e: e[0])
+
+            if len(distances_and_indexes) > 0:
+                split_after_index = distances_and_indexes[0][1]
+
+                line = line[:split_after_index+1] + '\n' + line[split_after_index+1:]
+
+        self.label.setText(line)
+        self.qrcode.hide()
+
+    def set_line_image(self, page_index, line):
+        img = self.render_page(page_index, preview=False)
+
+        # Remove the white border
+        xscaling = img.width() / line["image_width"]     # How much larger are actual images compared to previews (an easy way not to propagate constants outside of self.render_page)
+        yscaling = img.height() / line["image_height"]
+
+        img = img.copy(
+            int(line["left"] * xscaling),
+            int(line["top"] * yscaling),
+            int(line["width"] * xscaling),
+            int(line["height"] * yscaling)
+        )
+
+        self.label.setPixmap(QPixmap.fromImage(img))
+        self.qrcode.hide()
 
     @cherrypy.expose
     def clear_screen(self):
