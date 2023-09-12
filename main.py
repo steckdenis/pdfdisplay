@@ -51,12 +51,10 @@ class WebserverRoot(object):
         if preview:
             if self.processing:
                 # Render the page at DPI sufficiently high for people to be able to read text
-                xdpi = 72
-                ydpi = 72
+                dpi = 72
             else:
                 # Render the page at some low DPI, just for preview
-                xdpi = 40
-                ydpi = 40
+                dpi = 40
         else:
             size = self.label.size()
             swidth = size.width()               # Screen size in pixels
@@ -64,8 +62,9 @@ class WebserverRoot(object):
 
             xdpi = swidth / (pwidth / 72)       # dot-per-inch = pixels / inch = pixels / (points / 72)
             ydpi = sheight / (pheight / 72)
+            dpi = max(xdpi, ydpi)
 
-        image = renderer.render_page(page, xdpi, ydpi)
+        image = renderer.render_page(page, dpi, dpi)
         image = QImage(image.data, image.width, image.height, image.bytes_per_row, QImage.Format_RGB32)
         image = image.copy()                # Required because renderer.render_page will go away, freeing the data used as QImage as backing store.
 
