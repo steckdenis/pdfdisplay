@@ -72,6 +72,10 @@
                 position: absolute;
                 display: block;
             }
+
+            .image_line.current {
+                background-color: #ccffcc88;
+            }
         </style>
     </head>
     <body>
@@ -149,7 +153,9 @@
                 });
 
                 $("#pages_list_contents div").removeClass("current");
+                $("#pages_list_contents .image_line").removeClass("current");
                 $(div).addClass("current");
+                $(link).addClass("current");
             }
 
             function process_pagelines(data, textStatus, xhr) {
