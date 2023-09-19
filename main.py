@@ -13,6 +13,7 @@ import sys
 import struct
 import urllib
 import json
+import re
 
 def get_ip():
     """ https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
@@ -35,6 +36,7 @@ class WebserverRoot(object):
         self.qrcode = qrcode
         self.black_pixmap = QPixmap(64, 64)
         self.black_pixmap.fill(QColor(0, 0, 0))
+        self.original_font_size = int(label.width() / 16)
 
     def render_page(self, page_index: int, preview: bool) -> QImage:
         if page_index >= self.doc.pages:
@@ -123,6 +125,15 @@ class WebserverRoot(object):
                         .replace('5.', '') \
                         .replace('6.', '') \
                         .strip()
+
+                    # Only allow line breaks after punctuation marks (not between words)
+                    text = re.sub("([^,;:!?.])\s+", "\\1\N{NO-BREAK SPACE}", text)
+
+                    # Allow line breaks before some words
+                    text = re.sub("(et|par|pour)\N{NO-BREAK SPACE}", "\N{ZERO WIDTH SPACE}\\1\N{NO-BREAK SPACE}", text)
+
+                    # Replace slashes (/) with zero-width spaces, the slash can be used to suggest a line break
+                    text = text.replace("/", "\N{ZERO WIDTH SPACE}")
 
                     tops_to_lines[i] = {    # Preview DPI is 72, which is also the numbers of points per inch (the unit used here). So no need to transform from points to pixels
                         "top": int(top),
@@ -226,23 +237,24 @@ class WebserverRoot(object):
     def set_line_text(self, page_index, line):
         line = line["text"]
 
-        # Split long lines at some natural (separator) boundary, instead of letting word wrap do weird things
-        if len(line) > 55:
-            l = len(line)
-            middle = l // 2
-            distances_and_indexes = []
+        # Adjust the font size of the label so that the text fits. self.original_font_size is ideal, but we may have to make it smaller
+        font_size = self.original_font_size
+        font = QFont(self.label.font())
+        ok = False
+        print(self.original_font_size)
 
-            for index, c in enumerate(line):
-                if c in '!,.;:':
-                    distances_and_indexes.append((abs(index - middle), index))
+        while font_size > 5 and not ok:
+            font.setPixelSize(font_size)
+            rect = QFontMetrics(font).boundingRect(0, 0, self.label.width(), self.label.height(), Qt.TextWordWrap, line)
 
-            distances_and_indexes = sorted(distances_and_indexes, key = lambda e: e[0])
+            print(rect.width(), self.label.width())
+            if rect.width() > self.label.width():
+                font_size -= 1
+            else:
+                ok = True
 
-            if len(distances_and_indexes) > 0:
-                split_after_index = distances_and_indexes[0][1]
-
-                line = line[:split_after_index+1] + '\n' + line[split_after_index+1:]
-
+        print('actual font size', font_size, font.pixelSize())
+        self.label.setFont(font)
         self.label.setText(line)
         self.qrcode.hide()
 
@@ -310,7 +322,7 @@ if __name__ == '__main__':
     QFontDatabase.addApplicationFont("Cantarell-Bold.ttf")
     app.processEvents()
 
-    font = QFont("Cantarell-Bold", int(win.width() / 20))
+    font = QFont("Cantarell-Bold", 10)
     palette = QPalette(QColor(255, 255, 255), QColor(0, 0, 0))
     win.setFont(font)
     win.setPalette(palette)
