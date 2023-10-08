@@ -130,7 +130,7 @@ class WebserverRoot(object):
                     text = re.sub("([^,;:!?.])\s+", "\\1\N{NO-BREAK SPACE}", text)
 
                     # Allow line breaks before some words
-                    text = re.sub("(et|par|pour)\N{NO-BREAK SPACE}", "\N{ZERO WIDTH SPACE}\\1\N{NO-BREAK SPACE}", text)
+                    text = re.sub("(et|par|pour|qui)\N{NO-BREAK SPACE}", "\N{ZERO WIDTH SPACE}\\1\N{NO-BREAK SPACE}", text)
 
                     # Replace slashes (/) with zero-width spaces, the slash can be used to suggest a line break
                     text = text.replace("/", "\N{ZERO WIDTH SPACE}")
