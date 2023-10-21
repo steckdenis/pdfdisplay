@@ -36,7 +36,7 @@ class WebserverRoot(object):
         self.qrcode = qrcode
         self.black_pixmap = QPixmap(64, 64)
         self.black_pixmap.fill(QColor(0, 0, 0))
-        self.original_font_size = int(label.width() / 16)
+        self.original_font_size = int(label.width() / 14)
 
     def render_page(self, page_index: int, preview: bool) -> QImage:
         if page_index >= self.doc.pages:
@@ -241,9 +241,8 @@ class WebserverRoot(object):
         font_size = self.original_font_size
         font = QFont(self.label.font())
         ok = False
-        print(self.original_font_size)
 
-        while font_size > 5 and not ok:
+        while font_size > (self.original_font_size * 0.7) and not ok:
             font.setPixelSize(font_size)
             rect = QFontMetrics(font).boundingRect(0, 0, self.label.width(), self.label.height(), Qt.TextWordWrap, line)
 
@@ -253,7 +252,11 @@ class WebserverRoot(object):
             else:
                 ok = True
 
-        print('actual font size', font_size, font.pixelSize())
+        if not ok:
+            # Not possible to fit the text on the slide, most probably because it does not contain enough breaks. Allow breaking between words:
+            line = line.replace("\N{NO-BREAK SPACE}", " ")
+            font.setPixelSize(self.original_font_size)
+
         self.label.setFont(font)
         self.label.setText(line)
         self.qrcode.hide()
