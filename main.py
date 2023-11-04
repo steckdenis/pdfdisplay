@@ -37,6 +37,7 @@ class WebserverRoot(object):
         self.black_pixmap = QPixmap(64, 64)
         self.black_pixmap.fill(QColor(0, 0, 0))
         self.original_font_size = int(label.width() / 14)
+        self.doc = None
 
     def render_page(self, page_index: int, preview: bool) -> QImage:
         if page_index >= self.doc.pages:
@@ -75,7 +76,15 @@ class WebserverRoot(object):
     @cherrypy.expose
     def index(self):
         with open("templates/index.html", "rb") as f:
-            return f.read()
+            data = f.read()
+
+            # Simple template replacement: if we already have a self.doc, tell the
+            # HTML page to display the pages in the document, as if the page
+            # just uploaded it
+            data = data.replace(b"{{ HAS_DOC }}", b"true" if (self.doc is not None) else b"false")
+            data = data.replace(b"{{ NUM_PAGES }}", bytes(str(self.doc and self.doc.pages), 'ascii'))
+
+            return data
 
     @cherrypy.expose
     def upload_pdf(self, data, processing):

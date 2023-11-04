@@ -92,15 +92,15 @@
                 </p>
                 <p>
                     <span class="radio_label">
-                        <input type="radio" id="as_is" name="processing">
-                        <label for="as_is">Afficher le PDF tel quel</label>
+                        <input type="radio" id="processed" name="processing" checked>
+                        <label for="processed">Afficher le PDF ligne par ligne</label>
                     </span>
 
                     <span style="width: 40px;">&nbsp;</span>
 
                     <span class="radio_label">
-                        <input type="radio" id="processed" name="processing" checked>
-                        <label for="processed">Afficher le PDF ligne par ligne</label>
+                        <input type="radio" id="as_is" name="processing">
+                        <label for="as_is">Afficher le PDF tel quel</label>
                     </span>
                 </p>
             </form>
@@ -258,6 +258,11 @@
             // React to uploaded files and clicks
             $("#upload_file").on("change", upload_pdf);
             $("#clear_screen").on("click", clear_screen);
+
+            // If we load the HTML page when the server already has a document, display it
+            if ({{ HAS_DOC }}) {
+                pdf_uploaded({{ NUM_PAGES }}, null, null);
+            }
         </script>
     </body>
 </html>
